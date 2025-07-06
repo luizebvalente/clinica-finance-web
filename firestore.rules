@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Regras para usuários - só podem acessar seus próprios dados
+    match /usuarios/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Regras para receitas - só podem acessar suas próprias receitas
+    match /receitas/{receitaId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.userId || 
+         request.auth.uid == request.resource.data.userId);
+    }
+    
+    // Regras para despesas - só podem acessar suas próprias despesas
+    match /despesas/{despesaId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.userId || 
+         request.auth.uid == request.resource.data.userId);
+    }
+    
+    // Regras para movimentações de fluxo de caixa
+    match /movimentacoes/{movimentacaoId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.userId || 
+         request.auth.uid == request.resource.data.userId);
+    }
+    
+    // Regras para configurações da clínica
+    match /configuracoes/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Regras para relatórios
+    match /relatorios/{relatorioId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.userId || 
+         request.auth.uid == request.resource.data.userId);
+    }
+    
+    // Negar acesso a qualquer outro documento
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

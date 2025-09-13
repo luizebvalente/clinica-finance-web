@@ -7,6 +7,7 @@ import {
   doc, 
   query, 
   orderBy,
+  where,
   serverTimestamp,
   getDoc,
   setDoc
@@ -29,10 +30,28 @@ const convertTimestamp = (data) => {
   return data;
 };
 
-// Serviços de Receitas
-export const getReceitas = async () => {
+// Função para obter o contexto da clínica atual
+const getCurrentClinicaContext = () => {
+  // Esta função deve ser chamada dentro do contexto de autenticação
+  // Por enquanto, vamos usar um fallback
+  const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
+  return userData.clinica?.id || null;
+};
+
+// ==================== RECEITAS ====================
+
+export const getReceitas = async (clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    console.warn('Clínica não especificada');
+    return [];
+  }
+
   try {
-    const q = query(collection(db, 'receitas'), orderBy('data', 'desc'));
+    const q = query(
+      collection(db, 'clinicas', clinica, 'receitas'), 
+      orderBy('data', 'desc')
+    );
     const querySnapshot = await getDocs(q);
     const receitas = [];
     querySnapshot.forEach((doc) => {
@@ -44,36 +63,46 @@ export const getReceitas = async () => {
     return receitas;
   } catch (error) {
     console.error('Erro ao buscar receitas:', error);
-    // Fallback para localStorage em caso de erro
     return getReceitasFromLocalStorage();
   }
 };
 
-export const addReceita = async (receita) => {
+export const addReceita = async (receita, clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    throw new Error('Clínica não especificada');
+  }
+
   try {
     const receitaData = {
       ...receita,
+      clinicaId: clinica,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
     
-    const docRef = await addDoc(collection(db, 'receitas'), receitaData);
+    const docRef = await addDoc(collection(db, 'clinicas', clinica, 'receitas'), receitaData);
     return {
       id: docRef.id,
       ...receita,
+      clinicaId: clinica,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
   } catch (error) {
     console.error('Erro ao adicionar receita:', error);
-    // Fallback para localStorage
     return addReceitaToLocalStorage(receita);
   }
 };
 
-export const updateReceita = async (id, dadosAtualizados) => {
+export const updateReceita = async (id, dadosAtualizados, clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    throw new Error('Clínica não especificada');
+  }
+
   try {
-    const receitaRef = doc(db, 'receitas', id);
+    const receitaRef = doc(db, 'clinicas', clinica, 'receitas', id);
     const updateData = {
       ...dadosAtualizados,
       updatedAt: serverTimestamp()
@@ -87,26 +116,39 @@ export const updateReceita = async (id, dadosAtualizados) => {
     };
   } catch (error) {
     console.error('Erro ao atualizar receita:', error);
-    // Fallback para localStorage
     return updateReceitaInLocalStorage(id, dadosAtualizados);
   }
 };
 
-export const deleteReceita = async (id) => {
+export const deleteReceita = async (id, clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    throw new Error('Clínica não especificada');
+  }
+
   try {
-    await deleteDoc(doc(db, 'receitas', id));
+    await deleteDoc(doc(db, 'clinicas', clinica, 'receitas', id));
     return true;
   } catch (error) {
     console.error('Erro ao deletar receita:', error);
-    // Fallback para localStorage
     return deleteReceitaFromLocalStorage(id);
   }
 };
 
-// Serviços de Despesas
-export const getDespesas = async () => {
+// ==================== DESPESAS ====================
+
+export const getDespesas = async (clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    console.warn('Clínica não especificada');
+    return [];
+  }
+
   try {
-    const q = query(collection(db, 'despesas'), orderBy('data', 'desc'));
+    const q = query(
+      collection(db, 'clinicas', clinica, 'despesas'), 
+      orderBy('data', 'desc')
+    );
     const querySnapshot = await getDocs(q);
     const despesas = [];
     querySnapshot.forEach((doc) => {
@@ -122,18 +164,25 @@ export const getDespesas = async () => {
   }
 };
 
-export const addDespesa = async (despesa) => {
+export const addDespesa = async (despesa, clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    throw new Error('Clínica não especificada');
+  }
+
   try {
     const despesaData = {
       ...despesa,
+      clinicaId: clinica,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
     
-    const docRef = await addDoc(collection(db, 'despesas'), despesaData);
+    const docRef = await addDoc(collection(db, 'clinicas', clinica, 'despesas'), despesaData);
     return {
       id: docRef.id,
       ...despesa,
+      clinicaId: clinica,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -143,9 +192,14 @@ export const addDespesa = async (despesa) => {
   }
 };
 
-export const updateDespesa = async (id, dadosAtualizados) => {
+export const updateDespesa = async (id, dadosAtualizados, clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    throw new Error('Clínica não especificada');
+  }
+
   try {
-    const despesaRef = doc(db, 'despesas', id);
+    const despesaRef = doc(db, 'clinicas', clinica, 'despesas', id);
     const updateData = {
       ...dadosAtualizados,
       updatedAt: serverTimestamp()
@@ -163,9 +217,14 @@ export const updateDespesa = async (id, dadosAtualizados) => {
   }
 };
 
-export const deleteDespesa = async (id) => {
+export const deleteDespesa = async (id, clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    throw new Error('Clínica não especificada');
+  }
+
   try {
-    await deleteDoc(doc(db, 'despesas', id));
+    await deleteDoc(doc(db, 'clinicas', clinica, 'despesas', id));
     return true;
   } catch (error) {
     console.error('Erro ao deletar despesa:', error);
@@ -173,10 +232,16 @@ export const deleteDespesa = async (id) => {
   }
 };
 
-// Serviços de Categorias
-export const getCategorias = async () => {
+// ==================== CATEGORIAS ====================
+
+export const getCategorias = async (clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    return getCategoriasFromLocalStorage();
+  }
+
   try {
-    const docRef = doc(db, 'configuracoes', 'categorias');
+    const docRef = doc(db, 'clinicas', clinica, 'configuracoes', 'categorias');
     const docSnap = await getDoc(docRef);
     
     if (docSnap.exists()) {
@@ -184,8 +249,8 @@ export const getCategorias = async () => {
     } else {
       // Criar documento inicial se não existir
       const categoriasIniciais = {
-        receitas: ['Consulta', 'Exame', 'Procedimento', 'Convênio'],
-        despesas: ['Aluguel', 'Energia', 'Água', 'Internet', 'Material', 'Salários', 'Impostos']
+        receitas: ['Consulta', 'Exame', 'Procedimento', 'Convênio', 'Telemedicina'],
+        despesas: ['Administrativa', 'Clínica', 'Utilidades', 'Marketing', 'Equipamentos', 'Pessoal']
       };
       await setDoc(docRef, categoriasIniciais);
       return categoriasIniciais;
@@ -196,9 +261,14 @@ export const getCategorias = async () => {
   }
 };
 
-export const updateCategorias = async (categorias) => {
+export const updateCategorias = async (categorias, clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    return updateCategoriasInLocalStorage(categorias);
+  }
+
   try {
-    const docRef = doc(db, 'configuracoes', 'categorias');
+    const docRef = doc(db, 'clinicas', clinica, 'configuracoes', 'categorias');
     await setDoc(docRef, categorias);
     return categorias;
   } catch (error) {
@@ -207,12 +277,12 @@ export const updateCategorias = async (categorias) => {
   }
 };
 
-export const addCategoriaReceita = async (categoria) => {
+export const addCategoriaReceita = async (categoria, clinicaId = null) => {
   try {
-    const categorias = await getCategorias();
+    const categorias = await getCategorias(clinicaId);
     if (!categorias.receitas.includes(categoria)) {
       categorias.receitas.push(categoria);
-      await updateCategorias(categorias);
+      await updateCategorias(categorias, clinicaId);
     }
     return categorias;
   } catch (error) {
@@ -221,12 +291,12 @@ export const addCategoriaReceita = async (categoria) => {
   }
 };
 
-export const addCategoriaDespesa = async (categoria) => {
+export const addCategoriaDespesa = async (categoria, clinicaId = null) => {
   try {
-    const categorias = await getCategorias();
+    const categorias = await getCategorias(clinicaId);
     if (!categorias.despesas.includes(categoria)) {
       categorias.despesas.push(categoria);
-      await updateCategorias(categorias);
+      await updateCategorias(categorias, clinicaId);
     }
     return categorias;
   } catch (error) {
@@ -235,11 +305,11 @@ export const addCategoriaDespesa = async (categoria) => {
   }
 };
 
-export const removeCategoriaReceita = async (categoria) => {
+export const removeCategoriaReceita = async (categoria, clinicaId = null) => {
   try {
-    const categorias = await getCategorias();
+    const categorias = await getCategorias(clinicaId);
     categorias.receitas = categorias.receitas.filter(c => c !== categoria);
-    await updateCategorias(categorias);
+    await updateCategorias(categorias, clinicaId);
     return categorias;
   } catch (error) {
     console.error('Erro ao remover categoria de receita:', error);
@@ -247,11 +317,11 @@ export const removeCategoriaReceita = async (categoria) => {
   }
 };
 
-export const removeCategoriaDespesa = async (categoria) => {
+export const removeCategoriaDespesa = async (categoria, clinicaId = null) => {
   try {
-    const categorias = await getCategorias();
+    const categorias = await getCategorias(clinicaId);
     categorias.despesas = categorias.despesas.filter(c => c !== categoria);
-    await updateCategorias(categorias);
+    await updateCategorias(categorias, clinicaId);
     return categorias;
   } catch (error) {
     console.error('Erro ao remover categoria de despesa:', error);
@@ -259,10 +329,20 @@ export const removeCategoriaDespesa = async (categoria) => {
   }
 };
 
-// Serviços de Profissionais
-export const getProfissionais = async () => {
+// ==================== PROFISSIONAIS ====================
+
+export const getProfissionais = async (clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    console.warn('Clínica não especificada');
+    return [];
+  }
+
   try {
-    const q = query(collection(db, 'profissionais'), orderBy('nome'));
+    const q = query(
+      collection(db, 'clinicas', clinica, 'profissionais'), 
+      orderBy('nome')
+    );
     const querySnapshot = await getDocs(q);
     const profissionais = [];
     querySnapshot.forEach((doc) => {
@@ -278,18 +358,25 @@ export const getProfissionais = async () => {
   }
 };
 
-export const addProfissional = async (profissional) => {
+export const addProfissional = async (profissional, clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    throw new Error('Clínica não especificada');
+  }
+
   try {
     const profissionalData = {
       ...profissional,
+      clinicaId: clinica,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
     
-    const docRef = await addDoc(collection(db, 'profissionais'), profissionalData);
+    const docRef = await addDoc(collection(db, 'clinicas', clinica, 'profissionais'), profissionalData);
     return {
       id: docRef.id,
       ...profissional,
+      clinicaId: clinica,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -299,9 +386,14 @@ export const addProfissional = async (profissional) => {
   }
 };
 
-export const updateProfissional = async (id, dadosAtualizados) => {
+export const updateProfissional = async (id, dadosAtualizados, clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    throw new Error('Clínica não especificada');
+  }
+
   try {
-    const profissionalRef = doc(db, 'profissionais', id);
+    const profissionalRef = doc(db, 'clinicas', clinica, 'profissionais', id);
     const updateData = {
       ...dadosAtualizados,
       updatedAt: serverTimestamp()
@@ -319,9 +411,14 @@ export const updateProfissional = async (id, dadosAtualizados) => {
   }
 };
 
-export const deleteProfissional = async (id) => {
+export const deleteProfissional = async (id, clinicaId = null) => {
+  const clinica = clinicaId || getCurrentClinicaContext();
+  if (!clinica) {
+    throw new Error('Clínica não especificada');
+  }
+
   try {
-    await deleteDoc(doc(db, 'profissionais', id));
+    await deleteDoc(doc(db, 'clinicas', clinica, 'profissionais', id));
     return true;
   } catch (error) {
     console.error('Erro ao deletar profissional:', error);
@@ -329,19 +426,20 @@ export const deleteProfissional = async (id) => {
   }
 };
 
-// Serviço de Estatísticas
-export const getEstatisticas = async () => {
+// ==================== ESTATÍSTICAS ====================
+
+export const getEstatisticas = async (clinicaId = null) => {
   try {
     const [receitas, despesas] = await Promise.all([
-      getReceitas(),
-      getDespesas()
+      getReceitas(clinicaId),
+      getDespesas(clinicaId)
     ]);
 
-    const totalReceitas = receitas.reduce((sum, r) => sum + r.valor, 0);
-    const totalDespesas = despesas.reduce((sum, d) => sum + d.valor, 0);
-    const totalRecebido = receitas.filter(r => r.status === 'Recebido').reduce((sum, r) => sum + r.valor, 0);
-    const totalPago = despesas.filter(d => d.status === 'Pago').reduce((sum, d) => sum + d.valor, 0);
-    const totalPendente = receitas.filter(r => r.status === 'Pendente').reduce((sum, r) => sum + r.valor, 0);
+    const totalReceitas = receitas.reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
+    const totalDespesas = despesas.reduce((sum, d) => sum + (parseFloat(d.valor) || 0), 0);
+    const totalRecebido = receitas.filter(r => r.status === 'Recebido').reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
+    const totalPago = despesas.filter(d => d.status === 'Pago').reduce((sum, d) => sum + (parseFloat(d.valor) || 0), 0);
+    const totalPendente = receitas.filter(r => r.status === 'Pendente').reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
 
     const hoje = new Date();
     const contasVencidas = despesas.filter(d => {
@@ -352,7 +450,7 @@ export const getEstatisticas = async () => {
     const valorVencido = despesas.filter(d => {
       if (!d.vencimento || d.status === 'Pago') return false;
       return new Date(d.vencimento) < hoje;
-    }).reduce((sum, d) => sum + d.valor, 0);
+    }).reduce((sum, d) => sum + (parseFloat(d.valor) || 0), 0);
 
     const receitasPendentesCount = receitas.filter(r => r.status === 'Pendente').length;
 
@@ -375,7 +473,129 @@ export const getEstatisticas = async () => {
   }
 };
 
-// Funções de fallback para localStorage
+// ==================== CLÍNICAS ====================
+
+export const getClinicaById = async (clinicaId) => {
+  try {
+    const docRef = doc(db, 'clinicas', clinicaId);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      return {
+        id: docSnap.id,
+        ...convertTimestamp(docSnap.data())
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Erro ao buscar clínica:', error);
+    return null;
+  }
+};
+
+export const updateClinica = async (clinicaId, dadosAtualizados) => {
+  try {
+    const clinicaRef = doc(db, 'clinicas', clinicaId);
+    const updateData = {
+      ...dadosAtualizados,
+      updatedAt: serverTimestamp()
+    };
+    
+    await updateDoc(clinicaRef, updateData);
+    return {
+      id: clinicaId,
+      ...dadosAtualizados,
+      updatedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Erro ao atualizar clínica:', error);
+    throw error;
+  }
+};
+
+export const getClinicasPorUsuario = async (userId) => {
+  try {
+    // Buscar clínicas onde o usuário é owner
+    const ownerQuery = query(
+      collection(db, 'clinicas'),
+      where('ownerId', '==', userId),
+      where('status', '==', 'ativa')
+    );
+    const ownerSnapshot = await getDocs(ownerQuery);
+    
+    const clinicas = [];
+    ownerSnapshot.forEach(doc => {
+      clinicas.push({
+        id: doc.id,
+        ...convertTimestamp(doc.data()),
+        userRole: 'owner'
+      });
+    });
+
+    return clinicas;
+  } catch (error) {
+    console.error('Erro ao buscar clínicas do usuário:', error);
+    return [];
+  }
+};
+
+// ==================== USUÁRIOS DA CLÍNICA ====================
+
+export const adicionarUsuarioClinica = async (clinicaId, userId, dadosUsuario) => {
+  try {
+    const usuarioData = {
+      userId,
+      ...dadosUsuario,
+      addedAt: serverTimestamp(),
+      status: 'ativo'
+    };
+    
+    await setDoc(doc(db, 'clinicas', clinicaId, 'usuarios', userId), usuarioData);
+    return usuarioData;
+  } catch (error) {
+    console.error('Erro ao adicionar usuário à clínica:', error);
+    throw error;
+  }
+};
+
+export const removerUsuarioClinica = async (clinicaId, userId) => {
+  try {
+    await updateDoc(doc(db, 'clinicas', clinicaId, 'usuarios', userId), {
+      status: 'inativo',
+      removedAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Erro ao remover usuário da clínica:', error);
+    throw error;
+  }
+};
+
+export const getUsuariosClinica = async (clinicaId) => {
+  try {
+    const q = query(
+      collection(db, 'clinicas', clinicaId, 'usuarios'),
+      where('status', '==', 'ativo')
+    );
+    const querySnapshot = await getDocs(q);
+    const usuarios = [];
+    
+    querySnapshot.forEach((doc) => {
+      usuarios.push({
+        id: doc.id,
+        ...convertTimestamp(doc.data())
+      });
+    });
+    
+    return usuarios;
+  } catch (error) {
+    console.error('Erro ao buscar usuários da clínica:', error);
+    return [];
+  }
+};
+
+// ==================== FUNÇÕES DE FALLBACK (localStorage) ====================
+
 const getReceitasFromLocalStorage = () => {
   const receitas = localStorage.getItem('clinica_receitas');
   return receitas ? JSON.parse(receitas) : [];
@@ -459,8 +679,8 @@ const deleteDespesaFromLocalStorage = (id) => {
 const getCategoriasFromLocalStorage = () => {
   const categorias = localStorage.getItem('clinica_categorias');
   return categorias ? JSON.parse(categorias) : {
-    receitas: ['Consulta', 'Exame', 'Procedimento', 'Convênio'],
-    despesas: ['Aluguel', 'Energia', 'Água', 'Internet', 'Material', 'Salários', 'Impostos']
+    receitas: ['Consulta', 'Exame', 'Procedimento', 'Convênio', 'Telemedicina'],
+    despesas: ['Administrativa', 'Clínica', 'Utilidades', 'Marketing', 'Equipamentos', 'Pessoal']
   };
 };
 
@@ -516,11 +736,11 @@ const getEstatisticasFromLocalStorage = () => {
   const receitas = getReceitasFromLocalStorage();
   const despesas = getDespesasFromLocalStorage();
 
-  const totalReceitas = receitas.reduce((sum, r) => sum + r.valor, 0);
-  const totalDespesas = despesas.reduce((sum, d) => sum + d.valor, 0);
-  const totalRecebido = receitas.filter(r => r.status === 'Recebido').reduce((sum, r) => sum + r.valor, 0);
-  const totalPago = despesas.filter(d => d.status === 'Pago').reduce((sum, d) => sum + d.valor, 0);
-  const totalPendente = receitas.filter(r => r.status === 'Pendente').reduce((sum, r) => sum + r.valor, 0);
+  const totalReceitas = receitas.reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
+  const totalDespesas = despesas.reduce((sum, d) => sum + (parseFloat(d.valor) || 0), 0);
+  const totalRecebido = receitas.filter(r => r.status === 'Recebido').reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
+  const totalPago = despesas.filter(d => d.status === 'Pago').reduce((sum, d) => sum + (parseFloat(d.valor) || 0), 0);
+  const totalPendente = receitas.filter(r => r.status === 'Pendente').reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
 
   const hoje = new Date();
   const contasVencidas = despesas.filter(d => {
@@ -531,7 +751,7 @@ const getEstatisticasFromLocalStorage = () => {
   const valorVencido = despesas.filter(d => {
     if (!d.vencimento || d.status === 'Pago') return false;
     return new Date(d.vencimento) < hoje;
-  }).reduce((sum, d) => sum + d.valor, 0);
+  }).reduce((sum, d) => sum + (parseFloat(d.valor) || 0), 0);
 
   const receitasPendentesCount = receitas.filter(r => r.status === 'Pendente').length;
 
@@ -550,7 +770,8 @@ const getEstatisticasFromLocalStorage = () => {
   };
 };
 
-// Exportar serviço de localStorage para backup
+// ==================== SERVIÇO DE BACKUP ====================
+
 export const localStorageService = {
   exportData: () => {
     const data = {
@@ -584,4 +805,3 @@ export const localStorageService = {
     localStorage.removeItem('clinica_profissionais');
   }
 };
-

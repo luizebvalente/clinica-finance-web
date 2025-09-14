@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   getReceitas, 
   addReceita, 
@@ -24,13 +25,22 @@ import toast from 'react-hot-toast';
 
 // Hook para gerenciar receitas
 export const useReceitas = () => {
+  const { currentUser } = useAuth();
   const [receitas, setReceitas] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const clinicaId = currentUser?.clinica?.id;
+
   const carregarReceitas = useCallback(async () => {
+    if (!clinicaId) {
+      setReceitas([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await getReceitas();
+      const data = await getReceitas(clinicaId);
       setReceitas(data);
     } catch (error) {
       console.error('Erro ao carregar receitas:', error);
@@ -38,15 +48,20 @@ export const useReceitas = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clinicaId]);
 
   useEffect(() => {
     carregarReceitas();
   }, [carregarReceitas]);
 
   const adicionarReceita = async (novaReceita) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      const receitaAdicionada = await addReceita(novaReceita);
+      const receitaAdicionada = await addReceita(novaReceita, clinicaId);
       setReceitas(prev => [receitaAdicionada, ...prev]);
       toast.success('Receita adicionada com sucesso!');
       return receitaAdicionada;
@@ -58,8 +73,13 @@ export const useReceitas = () => {
   };
 
   const atualizarReceita = async (id, dadosAtualizados) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      const receitaAtualizada = await updateReceita(id, dadosAtualizados);
+      const receitaAtualizada = await updateReceita(id, dadosAtualizados, clinicaId);
       setReceitas(prev => 
         prev.map(receita => 
           receita.id === id ? { ...receita, ...dadosAtualizados } : receita
@@ -75,8 +95,13 @@ export const useReceitas = () => {
   };
 
   const removerReceita = async (id) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      await deleteReceita(id);
+      await deleteReceita(id, clinicaId);
       setReceitas(prev => prev.filter(receita => receita.id !== id));
       toast.success('Receita removida com sucesso!');
     } catch (error) {
@@ -98,13 +123,22 @@ export const useReceitas = () => {
 
 // Hook para gerenciar despesas
 export const useDespesas = () => {
+  const { currentUser } = useAuth();
   const [despesas, setDespesas] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const clinicaId = currentUser?.clinica?.id;
+
   const carregarDespesas = useCallback(async () => {
+    if (!clinicaId) {
+      setDespesas([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await getDespesas();
+      const data = await getDespesas(clinicaId);
       setDespesas(data);
     } catch (error) {
       console.error('Erro ao carregar despesas:', error);
@@ -112,15 +146,20 @@ export const useDespesas = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clinicaId]);
 
   useEffect(() => {
     carregarDespesas();
   }, [carregarDespesas]);
 
   const adicionarDespesa = async (novaDespesa) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      const despesaAdicionada = await addDespesa(novaDespesa);
+      const despesaAdicionada = await addDespesa(novaDespesa, clinicaId);
       setDespesas(prev => [despesaAdicionada, ...prev]);
       toast.success('Despesa adicionada com sucesso!');
       return despesaAdicionada;
@@ -132,8 +171,13 @@ export const useDespesas = () => {
   };
 
   const atualizarDespesa = async (id, dadosAtualizados) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      const despesaAtualizada = await updateDespesa(id, dadosAtualizados);
+      const despesaAtualizada = await updateDespesa(id, dadosAtualizados, clinicaId);
       setDespesas(prev => 
         prev.map(despesa => 
           despesa.id === id ? { ...despesa, ...dadosAtualizados } : despesa
@@ -149,8 +193,13 @@ export const useDespesas = () => {
   };
 
   const removerDespesa = async (id) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      await deleteDespesa(id);
+      await deleteDespesa(id, clinicaId);
       setDespesas(prev => prev.filter(despesa => despesa.id !== id));
       toast.success('Despesa removida com sucesso!');
     } catch (error) {
@@ -184,13 +233,22 @@ export const useDespesas = () => {
 
 // Hook para gerenciar categorias
 export const useCategorias = () => {
+  const { currentUser } = useAuth();
   const [categorias, setCategorias] = useState({ receitas: [], despesas: [] });
   const [loading, setLoading] = useState(true);
 
+  const clinicaId = currentUser?.clinica?.id;
+
   const carregarCategorias = useCallback(async () => {
+    if (!clinicaId) {
+      setCategorias({ receitas: [], despesas: [] });
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await getCategorias();
+      const data = await getCategorias(clinicaId);
       setCategorias(data);
     } catch (error) {
       console.error('Erro ao carregar categorias:', error);
@@ -198,15 +256,20 @@ export const useCategorias = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clinicaId]);
 
   useEffect(() => {
     carregarCategorias();
   }, [carregarCategorias]);
 
   const adicionarCategoriaReceita = async (categoria) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      const categoriasAtualizadas = await addCategoriaReceita(categoria);
+      const categoriasAtualizadas = await addCategoriaReceita(categoria, clinicaId);
       setCategorias(categoriasAtualizadas);
       toast.success('Categoria de receita adicionada!');
       return categoriasAtualizadas;
@@ -218,8 +281,13 @@ export const useCategorias = () => {
   };
 
   const adicionarCategoriaDespesa = async (categoria) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      const categoriasAtualizadas = await addCategoriaDespesa(categoria);
+      const categoriasAtualizadas = await addCategoriaDespesa(categoria, clinicaId);
       setCategorias(categoriasAtualizadas);
       toast.success('Categoria de despesa adicionada!');
       return categoriasAtualizadas;
@@ -231,8 +299,13 @@ export const useCategorias = () => {
   };
 
   const removerCategoriaReceita = async (categoria) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      const categoriasAtualizadas = await removeCategoriaReceita(categoria);
+      const categoriasAtualizadas = await removeCategoriaReceita(categoria, clinicaId);
       setCategorias(categoriasAtualizadas);
       toast.success('Categoria de receita removida!');
       return categoriasAtualizadas;
@@ -244,8 +317,13 @@ export const useCategorias = () => {
   };
 
   const removerCategoriaDespesa = async (categoria) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      const categoriasAtualizadas = await removeCategoriaDespesa(categoria);
+      const categoriasAtualizadas = await removeCategoriaDespesa(categoria, clinicaId);
       setCategorias(categoriasAtualizadas);
       toast.success('Categoria de despesa removida!');
       return categoriasAtualizadas;
@@ -269,13 +347,22 @@ export const useCategorias = () => {
 
 // Hook para gerenciar profissionais
 export const useProfissionais = () => {
+  const { currentUser } = useAuth();
   const [profissionais, setProfissionais] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const clinicaId = currentUser?.clinica?.id;
+
   const carregarProfissionais = useCallback(async () => {
+    if (!clinicaId) {
+      setProfissionais([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await getProfissionais();
+      const data = await getProfissionais(clinicaId);
       setProfissionais(data);
     } catch (error) {
       console.error('Erro ao carregar profissionais:', error);
@@ -283,15 +370,20 @@ export const useProfissionais = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clinicaId]);
 
   useEffect(() => {
     carregarProfissionais();
   }, [carregarProfissionais]);
 
   const adicionarProfissional = async (novoProfissional) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      const profissionalAdicionado = await addProfissional(novoProfissional);
+      const profissionalAdicionado = await addProfissional(novoProfissional, clinicaId);
       setProfissionais(prev => [...prev, profissionalAdicionado]);
       toast.success('Profissional adicionado com sucesso!');
       return profissionalAdicionado;
@@ -303,8 +395,13 @@ export const useProfissionais = () => {
   };
 
   const atualizarProfissional = async (id, dadosAtualizados) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      const profissionalAtualizado = await updateProfissional(id, dadosAtualizados);
+      const profissionalAtualizado = await updateProfissional(id, dadosAtualizados, clinicaId);
       setProfissionais(prev => 
         prev.map(profissional => 
           profissional.id === id ? { ...profissional, ...dadosAtualizados } : profissional
@@ -320,8 +417,13 @@ export const useProfissionais = () => {
   };
 
   const removerProfissional = async (id) => {
+    if (!clinicaId) {
+      toast.error('Nenhuma clínica selecionada');
+      return;
+    }
+
     try {
-      await deleteProfissional(id);
+      await deleteProfissional(id, clinicaId);
       setProfissionais(prev => prev.filter(profissional => profissional.id !== id));
       toast.success('Profissional removido com sucesso!');
     } catch (error) {
@@ -343,6 +445,7 @@ export const useProfissionais = () => {
 
 // Hook para estatísticas e cálculos
 export const useEstatisticas = () => {
+  const { currentUser } = useAuth();
   const [estatisticas, setEstatisticas] = useState({
     totalReceitas: 0,
     totalDespesas: 0,
@@ -358,17 +461,37 @@ export const useEstatisticas = () => {
   });
   const [loading, setLoading] = useState(true);
 
+  const clinicaId = currentUser?.clinica?.id;
+
   const carregarEstatisticas = useCallback(async () => {
+    if (!clinicaId) {
+      setEstatisticas({
+        totalReceitas: 0,
+        totalDespesas: 0,
+        lucro: 0,
+        totalRecebido: 0,
+        totalPago: 0,
+        totalPendente: 0,
+        fluxoCaixa: 0,
+        margemLucro: 0,
+        contasVencidas: 0,
+        valorVencido: 0,
+        receitasPendentesCount: 0
+      });
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await getEstatisticas();
+      const data = await getEstatisticas(clinicaId);
       setEstatisticas(data);
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clinicaId]);
 
   useEffect(() => {
     carregarEstatisticas();
@@ -419,15 +542,18 @@ export const useEstatisticas = () => {
 export const useFluxoCaixa = () => {
   const { receitas } = useReceitas();
   const { despesas } = useDespesas();
+  const { currentUser } = useAuth();
 
-  // Simular movimentações futuras baseadas nos dados atuais
-  const movimentacoes = [
+  const clinicaId = currentUser?.clinica?.id;
+
+  // Timeline de eventos baseado nos dados reais
+  const eventos = [
     ...receitas.map(r => ({
       id: `receita-${r.id}`,
       data: r.data,
       descricao: r.descricao,
       tipo: 'entrada',
-      valor: r.valor,
+      valor: parseFloat(r.valor) || 0,
       status: r.status === 'Recebido' ? 'confirmado' : 'previsto',
       categoria: r.categoria
     })),
@@ -436,49 +562,57 @@ export const useFluxoCaixa = () => {
       data: d.vencimento || d.data,
       descricao: d.descricao,
       tipo: 'saida',
-      valor: d.valor,
+      valor: parseFloat(d.valor) || 0,
       status: d.status === 'Pago' ? 'confirmado' : 'previsto',
       categoria: d.categoria
     }))
-  ].sort((a, b) => new Date(b.data) - new Date(a.data));
+  ].sort((a, b) => new Date(a.data) - new Date(b.data));
 
   // Calcular saldo acumulado
-  let saldoAtual = 15420.50; // Saldo inicial simulado
-  const movimentacoesComSaldo = movimentacoes.map(mov => {
-    if (mov.status === 'confirmado') {
-      if (mov.tipo === 'entrada') {
-        saldoAtual += mov.valor;
+  const receitasRecebidas = receitas.filter(r => r.status === 'Recebido');
+  const despesasPagas = despesas.filter(d => d.status === 'Pago');
+  
+  const saldoAtual = receitasRecebidas.reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0) - 
+                   despesasPagas.reduce((sum, d) => sum + (parseFloat(d.valor) || 0), 0);
+
+  let saldoAcumulado = saldoAtual;
+  const eventosComSaldo = eventos.map(evento => {
+    if (evento.status === 'previsto') {
+      if (evento.tipo === 'entrada') {
+        saldoAcumulado += evento.valor;
       } else {
-        saldoAtual -= mov.valor;
+        saldoAcumulado -= evento.valor;
       }
     }
     return {
-      ...mov,
-      saldoAcumulado: saldoAtual
+      ...evento,
+      saldoAcumulado
     };
   });
 
   // Projeções
-  const totalEntradas = receitas.reduce((sum, r) => sum + r.valor, 0);
-  const totalSaidas = despesas.reduce((sum, d) => sum + d.valor, 0);
+  const totalEntradas = receitas.reduce((sum, r) => sum + (parseFloat(r.valor) || 0), 0);
+  const totalSaidas = despesas.reduce((sum, d) => sum + (parseFloat(d.valor) || 0), 0);
   const variacao = totalEntradas - totalSaidas;
 
   const projecoes = {
-    saldoAtual: 15420.50,
-    projecao30dias: 15420.50 + variacao,
-    projecao60dias: 15420.50 + variacao,
-    projecao90dias: 15420.50 + variacao
+    saldoAtual,
+    projecao30dias: saldoAtual + variacao,
+    projecao60dias: saldoAtual + variacao,
+    projecao90dias: saldoAtual + variacao
   };
 
   return {
-    movimentacoes: movimentacoesComSaldo,
+    movimentacoes: eventosComSaldo,
     projecoes,
-    saldoAtual: projecoes.saldoAtual
+    saldoAtual,
+    clinicaId
   };
 };
 
 // Hook combinado para facilitar o uso
 export const useFinancialData = () => {
+  const { currentUser } = useAuth();
   const receitas = useReceitas();
   const despesas = useDespesas();
   const categorias = useCategorias();
@@ -486,15 +620,164 @@ export const useFinancialData = () => {
   const estatisticas = useEstatisticas();
   const fluxoCaixa = useFluxoCaixa();
 
+  const clinicaId = currentUser?.clinica?.id;
+  const clinicaNome = currentUser?.clinica?.nome;
+
+  // Função para recarregar todos os dados
+  const recarregarTodos = async () => {
+    if (!clinicaId) return;
+
+    await Promise.all([
+      receitas.recarregar(),
+      despesas.recarregar(),
+      categorias.recarregar(),
+      profissionais.recarregar(),
+      estatisticas.recarregar()
+    ]);
+  };
+
+  // Verificar se dados estão carregando
+  const isLoading = receitas.loading || despesas.loading || categorias.loading || 
+                   profissionais.loading || estatisticas.loading;
+
+  // Verificar se há dados disponíveis
+  const hasData = receitas.receitas.length > 0 || despesas.despesas.length > 0;
+
   return {
+    // Dados
     receitas,
     despesas,
     categorias,
     profissionais,
     estatisticas,
-    fluxoCaixa
+    fluxoCaixa,
+    
+    // Estado
+    clinicaId,
+    clinicaNome,
+    isLoading,
+    hasData,
+    
+    // Funções
+    recarregarTodos
+  };
+};
+
+// Hook específico para permissões
+export const usePermissions = () => {
+  const { currentUser } = useAuth();
+
+  const hasPermission = useCallback((permission) => {
+    if (!currentUser) return false;
+    
+    // Owner sempre tem todas as permissões
+    if (currentUser.clinicaRole === 'owner') return true;
+    
+    // Verificar permissões específicas
+    const permissions = currentUser.permissions || [];
+    return permissions.includes('all') || permissions.includes(permission);
+  }, [currentUser]);
+
+  const hasAnyPermission = useCallback((permissionList) => {
+    return permissionList.some(permission => hasPermission(permission));
+  }, [hasPermission]);
+
+  const hasAllPermissions = useCallback((permissionList) => {
+    return permissionList.every(permission => hasPermission(permission));
+  }, [hasPermission]);
+
+  // Permissões específicas do sistema
+  const canCreateReceita = hasPermission('receitas:create') || hasPermission('financial:all');
+  const canEditReceita = hasPermission('receitas:update') || hasPermission('financial:all');
+  const canDeleteReceita = hasPermission('receitas:delete') || hasPermission('financial:all');
+  
+  const canCreateDespesa = hasPermission('despesas:create') || hasPermission('financial:all');
+  const canEditDespesa = hasPermission('despesas:update') || hasPermission('financial:all');
+  const canDeleteDespesa = hasPermission('despesas:delete') || hasPermission('financial:all');
+  
+  const canManageCategories = hasPermission('categories:manage') || hasPermission('settings:all');
+  const canManageProfissionais = hasPermission('profissionais:manage') || hasPermission('settings:all');
+  
+  const canViewReports = hasPermission('reports:view') || hasPermission('reports:all');
+  const canExportData = hasPermission('data:export') || hasPermission('reports:all');
+  
+  const canManageSettings = hasPermission('settings:manage') || hasPermission('settings:all');
+  const canManageUsers = hasPermission('users:manage');
+
+  return {
+    // Funções gerais
+    hasPermission,
+    hasAnyPermission,
+    hasAllPermissions,
+    
+    // Estado
+    isOwner: currentUser?.clinicaRole === 'owner',
+    userRole: currentUser?.clinicaRole,
+    permissions: currentUser?.permissions || [],
+    
+    // Permissões específicas
+    receitas: {
+      create: canCreateReceita,
+      edit: canEditReceita,
+      delete: canDeleteReceita
+    },
+    despesas: {
+      create: canCreateDespesa,
+      edit: canEditDespesa,
+      delete: canDeleteDespesa
+    },
+    settings: {
+      categories: canManageCategories,
+      profissionais: canManageProfissionais,
+      general: canManageSettings,
+      users: canManageUsers
+    },
+    reports: {
+      view: canViewReports,
+      export: canExportData
+    }
+  };
+};
+
+// Hook para monitorar status da clínica
+export const useClinicaStatus = () => {
+  const { currentUser } = useAuth();
+  
+  const isClinicaSelected = !!currentUser?.clinica;
+  const isClinicaActive = currentUser?.clinica?.status === 'ativa';
+  const clinicaName = currentUser?.clinica?.nome;
+  const clinicaId = currentUser?.clinica?.id;
+  
+  return {
+    isClinicaSelected,
+    isClinicaActive,
+    clinicaName,
+    clinicaId,
+    hasValidClinica: isClinicaSelected && isClinicaActive
+  };
+};
+
+// Hook para dados em tempo real (atualização automática)
+export const useRealtimeData = (intervalMinutes = 5) => {
+  const financial = useFinancialData();
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (financial.clinicaId && financial.hasData) {
+        financial.recarregarTodos();
+        setLastUpdate(new Date());
+      }
+    }, intervalMinutes * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [financial, intervalMinutes]);
+
+  return {
+    ...financial,
+    lastUpdate,
+    isRealtime: true
   };
 };
 
 export default useFinancialData;
-

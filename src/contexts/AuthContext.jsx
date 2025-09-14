@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const clinicaDoc = await getDoc(doc(db, 'clinicas', clinicaId));
       if (clinicaDoc.exists()) {
-        return clinicaDoc.data();
+        return { id: clinicaDoc.id, ...clinicaDoc.data() };
       }
       return null;
     } catch (error) {
@@ -50,12 +50,43 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Função para criar uma nova clínica
-  const criarClinica = async (dadosClinica, userId) => {
+  // Função para criar categorias padrão para uma nova clínica
+  const criarCategoriasIniciais = async (clinicaId) => {
     try {
-      const clinicaId = `clinica_${Date.now()}`;
+      await setDoc(doc(db, 'clinicas', clinicaId, 'configuracoes', 'categorias'), {
+        receitas: ['Consulta', 'Procedimento', 'Convênio', 'Telemedicina', 'Exames'],
+        despesas: ['Administrativa', 'Clínica', 'Utilidades', 'Marketing', 'Equipamentos', 'Pessoal'],
+        createdAt: Timestamp.now()
+      });
+    } catch (error) {
+      console.error('Erro ao criar categorias iniciais:', error);
+    }
+  };
+
+  // Função para criar profissionais iniciais
+  const criarProfissionaisIniciais = async (clinicaId, nomeUsuario) => {
+    try {
+      // Criar o usuário como primeiro profissional
+      await setDoc(doc(db, 'clinicas', clinicaId, 'profissionais', 'prof_inicial'), {
+        nome: nomeUsuario,
+        especialidade: 'Clínico Geral',
+        crm: '',
+        email: '',
+        telefone: '',
+        status: 'ativo',
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+    } catch (error) {
+      console.error('Erro ao criar profissionais iniciais:', error);
+    }
+  };
+
+  // Função para criar uma nova clínica
+  const criarClinica = async (dadosClinica, userId, nomeUsuario) => {
+    try {
+      const clinicaId = `clinica_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const clinicaData = {
-        id: clinicaId,
         nome: dadosClinica.nome,
         cnpj: dadosClinica.cnpj || '',
         endereco: dadosClinica.endereco || '',
@@ -72,13 +103,23 @@ export const AuthProvider = ({ children }) => {
         }
       };
 
+      // Criar documento da clínica
       await setDoc(doc(db, 'clinicas', clinicaId), clinicaData);
       
-      // Criar categorias padrão para a clínica
-      await setDoc(doc(db, 'clinicas', clinicaId, 'configuracoes', 'categorias'), {
-        receitas: ['Consulta', 'Procedimento', 'Convênio', 'Telemedicina', 'Exames'],
-        despesas: ['Administrativa', 'Clínica', 'Utilidades', 'Marketing', 'Equipamentos', 'Pessoal']
+      // Criar estrutura de permissões do usuário na clínica
+      await setDoc(doc(db, 'clinicas', clinicaId, 'usuarios', userId), {
+        userId: userId,
+        role: 'owner',
+        permissions: ['all'],
+        addedAt: Timestamp.now(),
+        status: 'ativo'
       });
+
+      // Criar categorias e profissionais iniciais
+      await Promise.all([
+        criarCategoriasIniciais(clinicaId),
+        criarProfissionaisIniciais(clinicaId, nomeUsuario)
+      ]);
 
       return { id: clinicaId, ...clinicaData };
     } catch (error) {
@@ -97,75 +138,75 @@ export const AuthProvider = ({ children }) => {
       // Buscar perfil do usuário
       const userDoc = await getDoc(doc(db, 'usuarios', firebaseUser.uid));
       
-      let userData;
-      if (userDoc.exists()) {
-        userData = {
-          id: firebaseUser.uid,
-          email: firebaseUser.email,
-          ...userDoc.data()
-        };
-
-        // Verificar se o usuário tem acesso à clínica especificada
-        let clinicaData = null;
-        let clinicaAcesso = null;
-
-        if (clinicaId) {
-          // Verificar acesso à clínica específica
-          const acessoQuery = query(
-            collection(db, 'clinicas', clinicaId, 'usuarios'),
-            where('userId', '==', firebaseUser.uid),
-            where('status', '==', 'ativo')
-          );
-          const acessoSnapshot = await getDocs(acessoQuery);
-          
-          if (!acessoSnapshot.empty) {
-            clinicaAcesso = acessoSnapshot.docs[0].data();
-            clinicaData = await getClinicaData(clinicaId);
-          } else {
-            throw new Error('Usuário não tem acesso a esta clínica');
-          }
-        } else {
-          // Buscar primeira clínica disponível do usuário
-          const clinicasQuery = query(
-            collection(db, 'clinicas'),
-            where('ownerId', '==', firebaseUser.uid),
-            where('status', '==', 'ativa')
-          );
-          const clinicasSnapshot = await getDocs(clinicasQuery);
-          
-          if (!clinicasSnapshot.empty) {
-            const firstClinica = clinicasSnapshot.docs[0];
-            clinicaData = { id: firstClinica.id, ...firstClinica.data() };
-            clinicaAcesso = { role: 'owner', permissions: ['all'] };
-          }
-        }
-
-        if (!clinicaData) {
-          throw new Error('Nenhuma clínica encontrada para este usuário');
-        }
-
-        // Atualizar último login
-        await updateDoc(doc(db, 'usuarios', firebaseUser.uid), {
-          lastLogin: Timestamp.now(),
-          lastClinicaId: clinicaData.id
-        });
-
-        const userCompleto = {
-          ...userData,
-          clinica: clinicaData,
-          clinicaRole: clinicaAcesso.role || 'user',
-          permissions: clinicaAcesso.permissions || []
-        };
-
-        setUser(firebaseUser);
-        setUserProfile(userCompleto);
-        setCurrentUser(userCompleto);
-        
-        toast.success(`Bem-vindo à ${clinicaData.nome}!`);
-        return userCompleto;
-      } else {
+      if (!userDoc.exists()) {
         throw new Error('Perfil de usuário não encontrado');
       }
+
+      const userData = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email,
+        ...userDoc.data()
+      };
+
+      // Verificar clínicas disponíveis
+      let clinicaData = null;
+      let clinicaAcesso = null;
+
+      if (clinicaId) {
+        // Verificar acesso à clínica específica
+        const acessoDoc = await getDoc(doc(db, 'clinicas', clinicaId, 'usuarios', firebaseUser.uid));
+        
+        if (acessoDoc.exists() && acessoDoc.data().status === 'ativo') {
+          clinicaAcesso = acessoDoc.data();
+          clinicaData = await getClinicaData(clinicaId);
+        }
+        
+        if (!clinicaData || !clinicaAcesso) {
+          throw new Error('Usuário não tem acesso a esta clínica');
+        }
+      } else {
+        // Buscar primeira clínica disponível do usuário
+        const clinicasQuery = query(
+          collection(db, 'clinicas'),
+          where('ownerId', '==', firebaseUser.uid),
+          where('status', '==', 'ativa')
+        );
+        const clinicasSnapshot = await getDocs(clinicasQuery);
+        
+        if (!clinicasSnapshot.empty) {
+          const firstClinica = clinicasSnapshot.docs[0];
+          clinicaData = { id: firstClinica.id, ...firstClinica.data() };
+          clinicaAcesso = { role: 'owner', permissions: ['all'] };
+        }
+      }
+
+      // Atualizar último login
+      await updateDoc(doc(db, 'usuarios', firebaseUser.uid), {
+        lastLogin: Timestamp.now(),
+        lastClinicaId: clinicaData?.id || null
+      });
+
+      const userCompleto = {
+        ...userData,
+        clinica: clinicaData,
+        clinicaRole: clinicaAcesso?.role || 'user',
+        permissions: clinicaAcesso?.permissions || []
+      };
+
+      // Persistir no localStorage para uso offline
+      localStorage.setItem('currentUser', JSON.stringify(userCompleto));
+
+      setUser(firebaseUser);
+      setUserProfile(userCompleto);
+      setCurrentUser(userCompleto);
+      
+      if (clinicaData) {
+        toast.success(`Bem-vindo à ${clinicaData.nome}!`);
+      } else {
+        toast.success('Login realizado com sucesso!');
+      }
+      
+      return userCompleto;
     } catch (error) {
       console.error('Erro no login:', error);
       let errorMessage = 'Erro ao fazer login';
@@ -175,7 +216,8 @@ export const AuthProvider = ({ children }) => {
           errorMessage = 'Usuário não encontrado';
           break;
         case 'auth/wrong-password':
-          errorMessage = 'Senha incorreta';
+        case 'auth/invalid-credential':
+          errorMessage = 'Email ou senha incorretos';
           break;
         case 'auth/invalid-email':
           errorMessage = 'Email inválido';
@@ -216,16 +258,11 @@ export const AuthProvider = ({ children }) => {
       // Criar clínica se fornecida
       let clinicaData = null;
       if (dadosAdicionais.clinica) {
-        clinicaData = await criarClinica(dadosAdicionais.clinica, firebaseUser.uid);
-        
-        // Adicionar usuário como owner da clínica
-        await setDoc(doc(db, 'clinicas', clinicaData.id, 'usuarios', firebaseUser.uid), {
-          userId: firebaseUser.uid,
-          role: 'owner',
-          permissions: ['all'],
-          addedAt: Timestamp.now(),
-          status: 'ativo'
-        });
+        clinicaData = await criarClinica(
+          dadosAdicionais.clinica, 
+          firebaseUser.uid, 
+          userData.nome
+        );
 
         // Atualizar usuário com ID da clínica
         await updateDoc(doc(db, 'usuarios', firebaseUser.uid), {
@@ -240,6 +277,9 @@ export const AuthProvider = ({ children }) => {
         clinicaRole: 'owner',
         permissions: ['all']
       };
+
+      // Persistir no localStorage
+      localStorage.setItem('currentUser', JSON.stringify(userCompleto));
       
       setUser(firebaseUser);
       setUserProfile(userCompleto);
@@ -292,9 +332,6 @@ export const AuthProvider = ({ children }) => {
         });
       });
 
-      // TODO: Buscar clínicas onde o usuário tem acesso (mas não é owner)
-      // Isso seria para funcionários que têm acesso a múltiplas clínicas
-
       return clinicas;
     } catch (error) {
       console.error('Erro ao buscar clínicas do usuário:', error);
@@ -311,18 +348,13 @@ export const AuthProvider = ({ children }) => {
       if (!clinicaData) throw new Error('Clínica não encontrada');
 
       // Verificar acesso
-      const acessoQuery = query(
-        collection(db, 'clinicas', clinicaId, 'usuarios'),
-        where('userId', '==', currentUser.id),
-        where('status', '==', 'ativo')
-      );
-      const acessoSnapshot = await getDocs(acessoQuery);
+      const acessoDoc = await getDoc(doc(db, 'clinicas', clinicaId, 'usuarios', currentUser.id));
       
-      if (acessoSnapshot.empty) {
+      if (!acessoDoc.exists() || acessoDoc.data().status !== 'ativo') {
         throw new Error('Usuário não tem acesso a esta clínica');
       }
 
-      const acessoData = acessoSnapshot.docs[0].data();
+      const acessoData = acessoDoc.data();
 
       // Atualizar último acesso
       await updateDoc(doc(db, 'usuarios', currentUser.id), {
@@ -332,10 +364,13 @@ export const AuthProvider = ({ children }) => {
 
       const userAtualizado = {
         ...currentUser,
-        clinica: { id: clinicaId, ...clinicaData },
+        clinica: clinicaData,
         clinicaRole: acessoData.role,
         permissions: acessoData.permissions || []
       };
+
+      // Atualizar localStorage
+      localStorage.setItem('currentUser', JSON.stringify(userAtualizado));
 
       setUserProfile(userAtualizado);
       setCurrentUser(userAtualizado);
@@ -356,6 +391,8 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setUserProfile(null);
       setCurrentUser(null);
+      // Limpar localStorage
+      localStorage.removeItem('currentUser');
       toast.success('Logout realizado com sucesso!');
     } catch (error) {
       console.error('Erro no logout:', error);
@@ -394,7 +431,20 @@ export const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
-          // Usuário logado - buscar dados do Firestore
+          // Tentar recuperar do localStorage primeiro
+          const storedUser = localStorage.getItem('currentUser');
+          if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            if (parsedUser.id === firebaseUser.uid) {
+              setUser(firebaseUser);
+              setUserProfile(parsedUser);
+              setCurrentUser(parsedUser);
+              setLoading(false);
+              return;
+            }
+          }
+
+          // Buscar dados do Firestore
           const userDoc = await getDoc(doc(db, 'usuarios', firebaseUser.uid));
           
           if (userDoc.exists()) {
@@ -409,15 +459,10 @@ export const AuthProvider = ({ children }) => {
               
               if (clinicaData) {
                 // Verificar se ainda tem acesso
-                const acessoQuery = query(
-                  collection(db, 'clinicas', userData.lastClinicaId, 'usuarios'),
-                  where('userId', '==', firebaseUser.uid),
-                  where('status', '==', 'ativo')
-                );
-                const acessoSnapshot = await getDocs(acessoQuery);
+                const acessoDoc = await getDoc(doc(db, 'clinicas', userData.lastClinicaId, 'usuarios', firebaseUser.uid));
                 
-                if (!acessoSnapshot.empty) {
-                  clinicaAcesso = acessoSnapshot.docs[0].data();
+                if (acessoDoc.exists() && acessoDoc.data().status === 'ativo') {
+                  clinicaAcesso = acessoDoc.data();
                 }
               }
             }
@@ -447,14 +492,15 @@ export const AuthProvider = ({ children }) => {
               permissions: clinicaAcesso?.permissions || []
             };
 
+            // Salvar no localStorage
+            localStorage.setItem('currentUser', JSON.stringify(userCompleto));
+
             setUser(firebaseUser);
             setUserProfile(userCompleto);
             setCurrentUser(userCompleto);
           } else {
             // Usuário sem perfil - logout
-            setUser(null);
-            setUserProfile(null);
-            setCurrentUser(null);
+            await signOut(auth);
           }
         } catch (error) {
           console.error('Erro ao carregar dados do usuário:', error);
@@ -467,6 +513,7 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         setUserProfile(null);
         setCurrentUser(null);
+        localStorage.removeItem('currentUser');
       }
       setLoading(false);
     });

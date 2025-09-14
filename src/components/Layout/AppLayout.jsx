@@ -11,10 +11,12 @@ import {
   Bell, 
   Settings, 
   LogOut,
-  User
+  User,
+  Building
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../../contexts/AuthContext';
+import ClinicaSelector from '../Clinica/ClinicaSelector';
 import toast from 'react-hot-toast';
 
 const AppLayout = () => {
@@ -82,6 +84,39 @@ const AppLayout = () => {
     return location.pathname === path;
   };
 
+  // Se não há clínica selecionada, mostrar tela de seleção
+  if (currentUser && !currentUser.clinica) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+          <div className="text-center mb-6">
+            <Building className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Selecione uma Clínica
+            </h2>
+            <p className="text-gray-600">
+              Você precisa selecionar ou criar uma clínica para continuar.
+            </p>
+          </div>
+          
+          <div className="space-y-4">
+            <ClinicaSelector />
+            
+            <div className="pt-4 border-t">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center px-4 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sair
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
@@ -91,8 +126,26 @@ const AppLayout = () => {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-center h-16 px-4 border-b border-gray-200">
+            <Building className="w-6 h-6 text-blue-600 mr-2" />
             <h1 className="text-xl font-bold text-blue-600">Clínica Finance</h1>
           </div>
+
+          {/* Info da Clínica */}
+          {currentUser?.clinica && (
+            <div className="px-4 py-3 border-b border-gray-200 bg-blue-50">
+              <div className="flex items-center space-x-2">
+                <Building className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-900 truncate">
+                    {currentUser.clinica.nome}
+                  </p>
+                  <p className="text-xs text-blue-600">
+                    {currentUser.clinicaRole === 'owner' ? 'Proprietário' : 'Usuário'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2">
@@ -125,10 +178,10 @@ const AppLayout = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  {userProfile?.name || 'Usuário'}
+                  {currentUser?.nome || currentUser?.email?.split('@')[0] || 'Usuário'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  {userProfile?.role || 'Supervisor'}
+                  {currentUser?.email}
                 </p>
               </div>
             </div>
@@ -170,18 +223,27 @@ const AppLayout = () => {
               >
                 <Menu className="w-5 h-5" />
               </Button>
+
+              {/* Breadcrumb / Título da página */}
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {menuItems.find(item => item.path === location.pathname)?.label || 'Dashboard'}
+                </h2>
+              </div>
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Seletor de Clínicas */}
+              <ClinicaSelector />
+
               <Button variant="ghost" size="sm">
                 <Bell className="w-5 h-5" />
               </Button>
-              <Button variant="ghost" size="sm">
-                <Settings className="w-5 h-5" />
-              </Button>
+
+              {/* User Info */}
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">
-                  {userProfile?.name || 'Usuário'}
+                <span className="text-sm font-medium text-gray-700 hidden sm:block">
+                  {currentUser?.nome || currentUser?.email?.split('@')[0]}
                 </span>
                 <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                   <User className="w-4 h-4 text-blue-600" />
@@ -209,4 +271,3 @@ const AppLayout = () => {
 };
 
 export default AppLayout;
-

@@ -6,14 +6,35 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Regras para receitas - só podem acessar suas próprias receitas
+    // Regras para clínicas - owner pode acessar, colaboradores com permissão
+    match /clinicas/{clinicaId} {
+      allow read, write: if request.auth != null && (
+        // Owner da clínica
+        resource.data.ownerId == request.auth.uid ||
+        request.resource.data.ownerId == request.auth.uid ||
+        // Usuário tem acesso na subcoleção de usuários
+        exists(/databases/$(database)/documents/clinicas/$(clinicaId)/usuarios/$(request.auth.uid))
+      );
+      
+      // Subcoleções da clínica
+      match /{subcollection}/{docId} {
+        allow read, write: if request.auth != null && (
+          // Owner da clínica
+          get(/databases/$(database)/documents/clinicas/$(clinicaId)).data.ownerId == request.auth.uid ||
+          // Usuário tem acesso
+          exists(/databases/$(database)/documents/clinicas/$(clinicaId)/usuarios/$(request.auth.uid))
+        );
+      }
+    }
+    
+    // Regras para receitas antigas (manter compatibilidade)
     match /receitas/{receitaId} {
       allow read, write: if request.auth != null && 
         (request.auth.uid == resource.data.userId || 
          request.auth.uid == request.resource.data.userId);
     }
     
-    // Regras para despesas - só podem acessar suas próprias despesas
+    // Regras para despesas antigas (manter compatibilidade)
     match /despesas/{despesaId} {
       allow read, write: if request.auth != null && 
         (request.auth.uid == resource.data.userId || 
@@ -27,7 +48,7 @@ service cloud.firestore {
          request.auth.uid == request.resource.data.userId);
     }
     
-    // Regras para configurações da clínica
+    // Regras para configurações da clínica antigas
     match /configuracoes/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
@@ -38,11 +59,5 @@ service cloud.firestore {
         (request.auth.uid == resource.data.userId || 
          request.auth.uid == request.resource.data.userId);
     }
-    
-    // Negar acesso a qualquer outro documento
-    match /{document=**} {
-      allow read, write: if false;
-    }
   }
 }
-

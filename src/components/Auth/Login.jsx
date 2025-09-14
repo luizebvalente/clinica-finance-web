@@ -210,13 +210,28 @@ const Login = () => {
         }
       });
       
+      // Verificar se houve erro no resultado
+      if (resultado && resultado.error) {
+        addDebugInfo(`Erro no registro: ${resultado.message}`);
+        toast.error(resultado.message);
+        return; // Não continuar se houve erro
+      }
+      
       addDebugInfo('Registro realizado com sucesso!');
       addDebugInfo(`Nova conta criada: ${resultado?.nome}`);
-      addDebugInfo(`Clínica criada: ${resultado?.clinica?.nome}`);
+      addDebugInfo(`Clínica criada: ${resultado?.clinica?.nome || 'Não criada'}`);
+      
+      // Se chegou até aqui, o registro foi bem-sucedido
+      // O redirecionamento será feito automaticamente pelo AuthContext
       
     } catch (error) {
       addDebugInfo(`Erro no registro: ${error.message}`);
       console.error('Erro no registro:', error);
+      
+      // Garantir que o erro seja mostrado ao usuário
+      if (!error.message.includes('já foi mostrado')) {
+        toast.error(error.message || 'Erro inesperado durante o cadastro');
+      }
     } finally {
       setCarregando(false);
     }

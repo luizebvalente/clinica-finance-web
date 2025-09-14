@@ -67,6 +67,14 @@ export const AuthProvider = ({ children }) => {
     try {
       debugLog('Criando nova clínica', { dadosClinica, userId, nomeUsuario });
       
+      // Validar pré-requisitos
+      if (!userId) {
+        throw new Error('ID do usuário é obrigatório');
+      }
+      if (!dadosClinica?.nome) {
+        throw new Error('Nome da clínica é obrigatório');
+      }
+      
       const clinicaId = `clinica_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const clinicaData = {
         nome: dadosClinica.nome,
@@ -85,12 +93,15 @@ export const AuthProvider = ({ children }) => {
         }
       };
 
+      debugLog('Iniciando operações de criação da clínica...');
+      
       // Usar batch para operações atômicas
       const batch = writeBatch(db);
       
       // Criar documento da clínica
       const clinicaRef = doc(db, 'clinicas', clinicaId);
       batch.set(clinicaRef, clinicaData);
+      debugLog('Documento da clínica adicionado ao batch');
       
       // Criar estrutura de permissões do usuário na clínica
       const usuarioClinicaRef = doc(db, 'clinicas', clinicaId, 'usuarios', userId);
@@ -101,11 +112,23 @@ export const AuthProvider = ({ children }) => {
         addedAt: serverTimestamp(),
         status: 'ativo'
       });
+      debugLog('Permissões do usuário adicionadas ao batch');
 
+      debugLog('Executando batch commit...');
       await batch.commit();
+      debugLog('Batch commit executado com sucesso');
+
+      // Verificar se a clínica foi realmente criada
+      const clinicaVerificacao = await getDoc(clinicaRef);
+      if (!clinicaVerificacao.exists()) {
+        throw new Error('Falha ao criar clínica - documento não foi salvo no Firestore');
+      }
+      debugLog('Clínica verificada no Firestore');
 
       // Inicializar dados da clínica (categorias, profissionais, etc.)
+      debugLog('Inicializando dados da clínica...');
       await inicializarDadosClinica(clinicaId, nomeUsuario);
+      debugLog('Dados da clínica inicializados com sucesso');
 
       const novaClinica = { 
         id: clinicaId, 
@@ -117,7 +140,18 @@ export const AuthProvider = ({ children }) => {
       debugLog('Clínica criada com sucesso:', novaClinica);
       return novaClinica;
     } catch (error) {
-      console.error('Erro ao criar clínica:', error);
+      console.error('Erro detalhado ao criar clínica:', error);
+      debugLog('Erro na criação da clínica:', error.message);
+      
+      // Verificar tipos específicos de erro
+      if (error.code === 'permission-denied') {
+        throw new Error('Erro de permissão: Verifique as regras do Firestore para a coleção clinicas');
+      } else if (error.code === 'unavailable') {
+        throw new Error('Serviço temporariamente indisponível. Tente novamente em alguns instantes.');
+      } else if (error.code === 'unauthenticated') {
+        throw new Error('Usuário não autenticado. Faça login novamente.');
+      }
+      
       throw error;
     }
   };
@@ -265,6 +299,20 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       debugLog('Iniciando processo de registro', { email, dadosAdicionais });
       
+      // Validações iniciais
+      if (!email || !password) {
+        throw new Error('Email e senha são obrigatórios');
+      }
+      
+      if (password.length < 6) {
+        throw new Error('Senha deve ter pelo menos 6 caracteres');
+      }
+      
+      if (dadosAdicionais.clinica && !dadosAdicionais.clinica.nome) {
+        throw new Error('Nome da clínica é obrigatório');
+      }
+      
+      debugLog('Criando usuário no Firebase Auth...');
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
       
@@ -280,31 +328,44 @@ export const AuthProvider = ({ children }) => {
         status: 'ativo'
       };
       
+      debugLog('Criando documento do usuário no Firestore...');
       await setDoc(doc(db, 'usuarios', firebaseUser.uid), userData);
-      debugLog('Documento do usuário criado');
+      debugLog('Documento do usuário criado com sucesso');
 
       // Criar clínica se fornecida
       let clinicaData = null;
       if (dadosAdicionais.clinica) {
-        debugLog('Criando clínica para o usuário');
-        clinicaData = await criarClinica(
-          dadosAdicionais.clinica, 
-          firebaseUser.uid, 
-          userData.nome
-        );
+        debugLog('Iniciando criação da clínica...');
+        try {
+          clinicaData = await criarClinica(
+            dadosAdicionais.clinica, 
+            firebaseUser.uid, 
+            userData.nome
+          );
+          debugLog('Clínica criada com sucesso:', clinicaData);
 
-        // Atualizar usuário com ID da clínica
-        await updateDoc(doc(db, 'usuarios', firebaseUser.uid), {
-          lastClinicaId: clinicaData.id
-        });
+          // Atualizar usuário com ID da clínica
+          debugLog('Atualizando usuário com ID da clínica...');
+          await updateDoc(doc(db, 'usuarios', firebaseUser.uid), {
+            lastClinicaId: clinicaData.id
+          });
+          debugLog('Usuário atualizado com ID da clínica');
+        } catch (clinicaError) {
+          console.error('Erro ao criar clínica durante registro:', clinicaError);
+          debugLog('Erro na criação da clínica:', clinicaError.message);
+          
+          // Se falhar na criação da clínica, ainda permitir o registro do usuário
+          // mas informar o erro
+          toast.error(`Usuário criado, mas houve erro na clínica: ${clinicaError.message}`);
+        }
       }
 
       const userCompleto = {
         id: firebaseUser.uid,
         ...userData,
         clinica: clinicaData,
-        clinicaRole: 'owner',
-        permissions: ['all'],
+        clinicaRole: clinicaData ? 'owner' : null,
+        permissions: clinicaData ? ['all'] : [],
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString()
       };
@@ -317,10 +378,18 @@ export const AuthProvider = ({ children }) => {
       setCurrentUser(userCompleto);
       
       debugLog('Registro completo realizado com sucesso');
-      toast.success('Conta criada com sucesso!');
+      
+      if (clinicaData) {
+        toast.success('Conta e clínica criadas com sucesso!');
+      } else {
+        toast.success('Conta criada com sucesso!');
+      }
+      
       return userCompleto;
     } catch (error) {
       console.error('Erro no registro:', error);
+      debugLog('Erro detalhado no registro:', error.message);
+      
       let errorMessage = 'Erro ao criar conta';
       
       switch (error.code) {
@@ -335,6 +404,12 @@ export const AuthProvider = ({ children }) => {
           break;
         case 'auth/operation-not-allowed':
           errorMessage = 'Operação não permitida. Contate o suporte.';
+          break;
+        case 'permission-denied':
+          errorMessage = 'Erro de permissão no banco de dados. Verifique as configurações.';
+          break;
+        case 'unavailable':
+          errorMessage = 'Serviço temporariamente indisponível. Tente novamente.';
           break;
         default:
           errorMessage = error.message;

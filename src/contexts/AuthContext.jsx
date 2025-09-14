@@ -357,6 +357,9 @@ export const AuthProvider = ({ children }) => {
           // Se falhar na criação da clínica, ainda permitir o registro do usuário
           // mas informar o erro
           toast.error(`Usuário criado, mas houve erro na clínica: ${clinicaError.message}`);
+          
+          // Importante: não fazer throw aqui para não travar o sistema
+          // O usuário foi criado com sucesso, mesmo sem a clínica
         }
       }
 
@@ -382,7 +385,7 @@ export const AuthProvider = ({ children }) => {
       if (clinicaData) {
         toast.success('Conta e clínica criadas com sucesso!');
       } else {
-        toast.success('Conta criada com sucesso!');
+        toast.success('Conta criada com sucesso! Você pode criar uma clínica depois.');
       }
       
       return userCompleto;
@@ -392,31 +395,41 @@ export const AuthProvider = ({ children }) => {
       
       let errorMessage = 'Erro ao criar conta';
       
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorMessage = 'Este email já está em uso. Tente fazer login.';
-          break;
-        case 'auth/weak-password':
-          errorMessage = 'Senha muito fraca. Use pelo menos 6 caracteres.';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Email inválido.';
-          break;
-        case 'auth/operation-not-allowed':
-          errorMessage = 'Operação não permitida. Contate o suporte.';
-          break;
-        case 'permission-denied':
-          errorMessage = 'Erro de permissão no banco de dados. Verifique as configurações.';
-          break;
-        case 'unavailable':
-          errorMessage = 'Serviço temporariamente indisponível. Tente novamente.';
-          break;
-        default:
-          errorMessage = error.message;
+      // Tratamento mais específico de erros
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage = 'Este email já está em uso. Tente fazer login.';
+            break;
+          case 'auth/weak-password':
+            errorMessage = 'Senha muito fraca. Use pelo menos 6 caracteres.';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'Email inválido.';
+            break;
+          case 'auth/operation-not-allowed':
+            errorMessage = 'Operação não permitida. Contate o suporte.';
+            break;
+          case 'permission-denied':
+            errorMessage = 'Erro de permissão no banco de dados. Verifique as configurações.';
+            break;
+          case 'unavailable':
+            errorMessage = 'Serviço temporariamente indisponível. Tente novamente.';
+            break;
+          default:
+            errorMessage = `Erro do Firebase: ${error.message}`;
+        }
+      } else {
+        // Erro customizado
+        errorMessage = error.message;
       }
       
       toast.error(errorMessage);
-      throw new Error(errorMessage);
+      
+      // IMPORTANTE: Não fazer throw para evitar tela branca
+      // Em vez disso, retornar um objeto de erro
+      debugLog('Retornando erro controlado para evitar crash');
+      return { error: true, message: errorMessage };
     } finally {
       setLoading(false);
     }

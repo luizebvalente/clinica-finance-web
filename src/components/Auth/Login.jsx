@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { 
   Eye, 
   EyeOff, 
@@ -14,19 +14,22 @@ import {
   Users,
   ChevronDown,
   LogIn,
-  UserPlus
+  UserPlus,
+  AlertCircle
 } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import toast from 'react-hot-toast';
 
 const Login = () => {
-  const { currentUser, login, register, resetPassword, loading, getUsuarioClinicas } = useAuth();
+  const { currentUser, login, register, resetPassword, loading } = useAuth();
+  const location = useLocation();
   const [modo, setModo] = useState('login'); // 'login', 'register', 'reset'
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [clinicasDisponiveis, setClinicasDisponiveis] = useState([]);
   const [mostrarSelectorClinica, setMostrarSelectorClinica] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('');
   
   const [formData, setFormData] = useState({
     email: '',
@@ -44,16 +47,30 @@ const Login = () => {
     clinicaEmail: ''
   });
 
+  // Função de debug
+  const addDebugInfo = (info) => {
+    console.log('[LOGIN DEBUG]', info);
+    setDebugInfo(prev => prev + '\n' + new Date().toLocaleTimeString() + ': ' + info);
+  };
+
   // Se já estiver logado, redirecionar
   if (currentUser) {
-    return <Navigate to="/dashboard" replace />;
+    const from = location.state?.from?.pathname || '/dashboard';
+    addDebugInfo(`Usuário já logado, redirecionando para ${from}`);
+    return <Navigate to={from} replace />;
   }
 
   // Buscar clínicas disponíveis para um email
   const buscarClinicasDoEmail = async (email) => {
-    if (!email || !email.includes('@')) return;
+    if (!email || !email.includes('@')) {
+      setClinicasDisponiveis([]);
+      setMostrarSelectorClinica(false);
+      return;
+    }
 
     try {
+      addDebugInfo(`Buscando clínicas para email: ${email}`);
+      
       // Buscar usuário pelo email
       const usuariosQuery = query(
         collection(db, 'usuarios'),
@@ -63,11 +80,14 @@ const Login = () => {
       const usuariosSnapshot = await getDocs(usuariosQuery);
       
       if (usuariosSnapshot.empty) {
+        addDebugInfo('Nenhum usuário encontrado com este email');
         setClinicasDisponiveis([]);
+        setMostrarSelectorClinica(false);
         return;
       }
 
       const userId = usuariosSnapshot.docs[0].id;
+      addDebugInfo(`Usuário encontrado: ${userId}`);
       
       // Buscar clínicas onde o usuário é owner
       const clinicasQuery = query(
@@ -86,15 +106,18 @@ const Login = () => {
         });
       });
 
+      addDebugInfo(`Encontradas ${clinicas.length} clínicas`);
       setClinicasDisponiveis(clinicas);
       setMostrarSelectorClinica(clinicas.length > 1);
       
       // Se só tem uma clínica, selecionar automaticamente
       if (clinicas.length === 1) {
         setFormData(prev => ({ ...prev, clinicaId: clinicas[0].id }));
+        addDebugInfo(`Clínica selecionada automaticamente: ${clinicas[0].nome}`);
       }
     } catch (error) {
       console.error('Erro ao buscar clínicas:', error);
+      addDebugInfo(`Erro ao buscar clínicas: ${error.message}`);
       setClinicasDisponiveis([]);
     }
   };
@@ -134,9 +157,20 @@ const Login = () => {
 
     try {
       setCarregando(true);
-      await login(formData.email, formData.password, formData.clinicaId);
+      addDebugInfo('Iniciando processo de login...');
+      addDebugInfo(`Email: ${formData.email}`);
+      addDebugInfo(`Clínica selecionada: ${formData.clinicaId || 'nenhuma'}`);
+      
+      const resultado = await login(formData.email, formData.password, formData.clinicaId);
+      
+      addDebugInfo('Login realizado com sucesso!');
+      addDebugInfo(`Usuário logado: ${resultado?.nome || resultado?.email}`);
+      
+      // O redirecionamento será feito automaticamente pelo useEffect acima
+      
     } catch (error) {
-      // Erro já tratado no contexto
+      addDebugInfo(`Erro no login: ${error.message}`);
+      console.error('Erro no login:', error);
     } finally {
       setCarregando(false);
     }
@@ -162,7 +196,9 @@ const Login = () => {
 
     try {
       setCarregando(true);
-      await register(formData.email, formData.password, {
+      addDebugInfo('Iniciando processo de registro...');
+      
+      const resultado = await register(formData.email, formData.password, {
         nome: formData.nome,
         telefone: formData.telefone,
         clinica: {
@@ -173,8 +209,14 @@ const Login = () => {
           email: formData.clinicaEmail || formData.email
         }
       });
+      
+      addDebugInfo('Registro realizado com sucesso!');
+      addDebugInfo(`Nova conta criada: ${resultado?.nome}`);
+      addDebugInfo(`Clínica criada: ${resultado?.clinica?.nome}`);
+      
     } catch (error) {
-      // Erro já tratado no contexto
+      addDebugInfo(`Erro no registro: ${error.message}`);
+      console.error('Erro no registro:', error);
     } finally {
       setCarregando(false);
     }
@@ -190,11 +232,16 @@ const Login = () => {
 
     try {
       setCarregando(true);
+      addDebugInfo(`Enviando email de recuperação para: ${formData.email}`);
+      
       await resetPassword(formData.email);
       setModo('login');
       setFormData({ ...formData, password: '', confirmPassword: '' });
+      
+      addDebugInfo('Email de recuperação enviado com sucesso');
+      
     } catch (error) {
-      // Erro já tratado no contexto
+      addDebugInfo(`Erro ao enviar email de recuperação: ${error.message}`);
     } finally {
       setCarregando(false);
     }
@@ -204,8 +251,9 @@ const Login = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verificando autenticação...</p>
+          <p className="text-sm text-gray-500 mt-2">Aguarde...</p>
         </div>
       </div>
     );
@@ -229,6 +277,16 @@ const Login = () => {
               {modo === 'reset' && 'Recuperar senha'}
             </p>
           </div>
+
+          {/* Debug Info - Mostrar apenas em desenvolvimento */}
+          {process.env.NODE_ENV === 'development' && debugInfo && (
+            <div className="mb-4 p-3 bg-gray-100 rounded-lg">
+              <details>
+                <summary className="text-sm font-medium cursor-pointer">Debug Info</summary>
+                <pre className="text-xs mt-2 whitespace-pre-wrap">{debugInfo}</pre>
+              </details>
+            </div>
+          )}
 
           {/* Formulário de Login */}
           {modo === 'login' && (
@@ -581,7 +639,10 @@ const Login = () => {
             {modo === 'login' && (
               <div className="text-center space-y-3">
                 <button
-                  onClick={() => setModo('register')}
+                  onClick={() => {
+                    setModo('register');
+                    setDebugInfo('');
+                  }}
                   className="text-sm text-blue-600 hover:text-blue-500"
                 >
                   Não tem conta? Cadastrar nova clínica
@@ -592,7 +653,10 @@ const Login = () => {
             {modo === 'register' && (
               <div className="text-center">
                 <button
-                  onClick={() => setModo('login')}
+                  onClick={() => {
+                    setModo('login');
+                    setDebugInfo('');
+                  }}
                   className="text-sm text-blue-600 hover:text-blue-500"
                 >
                   Já tem conta? Fazer login
@@ -603,7 +667,10 @@ const Login = () => {
             {modo === 'reset' && (
               <div className="text-center">
                 <button
-                  onClick={() => setModo('login')}
+                  onClick={() => {
+                    setModo('login');
+                    setDebugInfo('');
+                  }}
                   className="text-sm text-blue-600 hover:text-blue-500"
                 >
                   Voltar ao login
@@ -617,6 +684,9 @@ const Login = () => {
         <div className="text-center text-sm text-gray-500">
           <p>Sistema de Gestão Financeira para Clínicas Médicas</p>
           <p className="mt-1">Multi-Clínica - Powered by Firebase</p>
+          {process.env.NODE_ENV === 'development' && (
+            <p className="mt-1 text-xs">Modo de desenvolvimento ativo</p>
+          )}
         </div>
       </div>
     </div>

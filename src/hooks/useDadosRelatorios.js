@@ -1,82 +1,161 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { getReceitas, getDespesas } from '../services/firebaseService';
 
-// Hook personalizado para gerenciar dados de relatórios com filtros
+// Hook personalizado para gerenciar dados de relatórios com filtros e dados reais
 export const useDadosRelatorios = (filtros) => {
-  // Dados mock completos
-  const dadosMock = useMemo(() => ({
-    receitas: [
-      { id: 1, descricao: 'Consulta - João Silva', categoria: 'consultas', valor: 250.00, data: '2025-01-03', mes: '01', ano: '2025', status: 'pago' },
-      { id: 2, descricao: 'Procedimento - Maria Santos', categoria: 'procedimentos', valor: 850.00, data: '2025-01-08', mes: '01', ano: '2025', status: 'pago' },
-      { id: 3, descricao: 'Convênio - Unimed', categoria: 'convenios', valor: 3200.00, data: '2025-01-15', mes: '01', ano: '2025', status: 'pendente' },
-      { id: 4, descricao: 'Telemedicina - Pedro Costa', categoria: 'telemedicina', valor: 180.00, data: '2025-01-12', mes: '01', ano: '2025', status: 'pendente' },
-      { id: 5, descricao: 'Exames - Ana Lima', categoria: 'exames', valor: 420.00, data: '2025-01-05', mes: '01', ano: '2025', status: 'atrasado' },
-      { id: 6, descricao: 'Consulta - Carlos Souza', categoria: 'consultas', valor: 250.00, data: '2024-12-20', mes: '12', ano: '2024', status: 'pago' },
-      { id: 7, descricao: 'Procedimento - Juliana Lima', categoria: 'procedimentos', valor: 1200.00, data: '2024-12-15', mes: '12', ano: '2024', status: 'pago' },
-      { id: 8, descricao: 'Consulta - Roberto Alves', categoria: 'consultas', valor: 250.00, data: '2024-11-10', mes: '11', ano: '2024', status: 'pago' },
-      { id: 9, descricao: 'Telemedicina - Fernanda Costa', categoria: 'telemedicina', valor: 180.00, data: '2025-01-20', mes: '01', ano: '2025', status: 'pendente' },
-      { id: 10, descricao: 'Procedimento - Marcos Silva', categoria: 'procedimentos', valor: 950.00, data: '2025-01-22', mes: '01', ano: '2025', status: 'pendente' }
-    ],
-    despesas: [
-      { id: 1, descricao: 'Aluguel', categoria: 'administrativa', valor: 3500.00, data: '2025-01-05', mes: '01', ano: '2025', status: 'pago' },
-      { id: 2, descricao: 'Energia Elétrica', categoria: 'utilidades', valor: 850.00, data: '2025-01-10', mes: '01', ano: '2025', status: 'pago' },
-      { id: 3, descricao: 'Internet', categoria: 'administrativa', valor: 250.00, data: '2025-01-15', mes: '01', ano: '2025', status: 'pendente' },
-      { id: 4, descricao: 'Material Médico', categoria: 'clinica', valor: 1200.00, data: '2025-01-20', mes: '01', ano: '2025', status: 'pendente' },
-      { id: 5, descricao: 'Salários', categoria: 'pessoal', valor: 8500.00, data: '2025-01-05', mes: '01', ano: '2025', status: 'atrasado' },
-      { id: 6, descricao: 'Marketing Digital', categoria: 'marketing', valor: 1450.00, data: '2025-01-25', mes: '01', ano: '2025', status: 'pendente' },
-      { id: 7, descricao: 'Aluguel', categoria: 'administrativa', valor: 3500.00, data: '2024-12-05', mes: '12', ano: '2024', status: 'pago' },
-      { id: 8, descricao: 'Energia Elétrica', categoria: 'utilidades', valor: 820.00, data: '2024-12-10', mes: '12', ano: '2024', status: 'pago' },
-      { id: 9, descricao: 'Aluguel', categoria: 'administrativa', valor: 3500.00, data: '2024-11-05', mes: '11', ano: '2024', status: 'pago' },
-      { id: 10, descricao: 'Equipamento Médico', categoria: 'equipamentos', valor: 2500.00, data: '2025-01-18', mes: '01', ano: '2025', status: 'pendente' }
-    ]
-  }), []);
+  const { currentUser } = useAuth();
+  const [receitasOriginais, setReceitasOriginais] = useState([]);
+  const [despesasOriginais, setDespesasOriginais] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const clinicaId = currentUser?.clinica?.id;
+
+  // Buscar dados reais do Firebase
+  useEffect(() => {
+    const carregarDados = async () => {
+      if (!clinicaId) {
+        setReceitasOriginais([]);
+        setDespesasOriginais([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Buscar receitas e despesas em paralelo
+        const [receitasData, despesasData] = await Promise.all([
+          getReceitas(clinicaId),
+          getDespesas(clinicaId)
+        ]);
+
+        // Processar receitas para adicionar campos necessários
+        const receitasProcessadas = receitasData.map(receita => {
+          const data = receita.data ? new Date(receita.data) : new Date();
+          return {
+            ...receita,
+            mes: String(data.getMonth() + 1).padStart(2, '0'),
+            ano: String(data.getFullYear()),
+            status: receita.status || 'pendente'
+          };
+        });
+
+        // Processar despesas para adicionar campos necessários
+        const despesasProcessadas = despesasData.map(despesa => {
+          const data = despesa.data ? new Date(despesa.data) : new Date();
+          return {
+            ...despesa,
+            mes: String(data.getMonth() + 1).padStart(2, '0'),
+            ano: String(data.getFullYear()),
+            status: despesa.status || 'pendente'
+          };
+        });
+
+        setReceitasOriginais(receitasProcessadas);
+        setDespesasOriginais(despesasProcessadas);
+      } catch (err) {
+        console.error('Erro ao carregar dados:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    carregarDados();
+  }, [clinicaId]);
 
   // Função para filtrar dados
   const filtrarDados = useMemo(() => {
-    let receitasFiltradas = [...dadosMock.receitas];
-    let despesasFiltradas = [...dadosMock.despesas];
+    let receitasFiltradas = [...receitasOriginais];
+    let despesasFiltradas = [...despesasOriginais];
 
-    // Filtro por ano
-    if (filtros.ano) {
-      receitasFiltradas = receitasFiltradas.filter(item => item.ano === filtros.ano);
-      despesasFiltradas = despesasFiltradas.filter(item => item.ano === filtros.ano);
-    }
+    // CORREÇÃO: Aplicar filtro de período APENAS se mês e ano não estiverem especificados
+    const temMesEspecifico = filtros.mes && filtros.mes !== '';
+    const temAnoEspecifico = filtros.ano && filtros.ano !== '';
 
-    // Filtro por mês
-    if (filtros.mes) {
-      receitasFiltradas = receitasFiltradas.filter(item => item.mes === filtros.mes);
-      despesasFiltradas = despesasFiltradas.filter(item => item.mes === filtros.mes);
-    }
-
-    // Filtro por período
-    if (filtros.periodo) {
-      const hoje = new Date();
-      const mesAtual = String(hoje.getMonth() + 1).padStart(2, '0');
-      const anoAtual = String(hoje.getFullYear());
-
-      switch (filtros.periodo) {
-        case 'mes_atual':
-          receitasFiltradas = receitasFiltradas.filter(item => 
-            item.mes === mesAtual && item.ano === anoAtual
-          );
-          despesasFiltradas = despesasFiltradas.filter(item => 
-            item.mes === mesAtual && item.ano === anoAtual
-          );
-          break;
-        case 'mes_anterior':
-          const mesAnterior = String(hoje.getMonth()).padStart(2, '0');
-          receitasFiltradas = receitasFiltradas.filter(item => 
-            item.mes === mesAnterior && item.ano === anoAtual
-          );
-          despesasFiltradas = despesasFiltradas.filter(item => 
-            item.mes === mesAnterior && item.ano === anoAtual
-          );
-          break;
-        case 'ano_atual':
-          receitasFiltradas = receitasFiltradas.filter(item => item.ano === anoAtual);
-          despesasFiltradas = despesasFiltradas.filter(item => item.ano === anoAtual);
-          break;
-        // Para trimestre_atual e customizado, implementar lógica adicional se necessário
+    // Se tem mês e ano específicos, usar eles ao invés do período
+    if (temMesEspecifico || temAnoEspecifico) {
+      // Filtro por ano
+      if (temAnoEspecifico) {
+        receitasFiltradas = receitasFiltradas.filter(item => item.ano === filtros.ano);
+        despesasFiltradas = despesasFiltradas.filter(item => item.ano === filtros.ano);
       }
+
+      // Filtro por mês
+      if (temMesEspecifico) {
+        receitasFiltradas = receitasFiltradas.filter(item => item.mes === filtros.mes);
+        despesasFiltradas = despesasFiltradas.filter(item => item.mes === filtros.mes);
+      }
+    } else {
+      // Aplicar filtro de período apenas se não houver mês/ano específico
+      if (filtros.periodo) {
+        const hoje = new Date();
+        const mesAtual = String(hoje.getMonth() + 1).padStart(2, '0');
+        const anoAtual = String(hoje.getFullYear());
+
+        switch (filtros.periodo) {
+          case 'mes_atual':
+            receitasFiltradas = receitasFiltradas.filter(item => 
+              item.mes === mesAtual && item.ano === anoAtual
+            );
+            despesasFiltradas = despesasFiltradas.filter(item => 
+              item.mes === mesAtual && item.ano === anoAtual
+            );
+            break;
+          case 'mes_anterior':
+            let mesAnterior = hoje.getMonth(); // 0-11
+            let anoAnterior = anoAtual;
+            if (mesAnterior === 0) {
+              mesAnterior = 12;
+              anoAnterior = String(parseInt(anoAtual) - 1);
+            }
+            const mesAnteriorStr = String(mesAnterior).padStart(2, '0');
+            receitasFiltradas = receitasFiltradas.filter(item => 
+              item.mes === mesAnteriorStr && item.ano === anoAnterior
+            );
+            despesasFiltradas = despesasFiltradas.filter(item => 
+              item.mes === mesAnteriorStr && item.ano === anoAnterior
+            );
+            break;
+          case 'ano_atual':
+            receitasFiltradas = receitasFiltradas.filter(item => item.ano === anoAtual);
+            despesasFiltradas = despesasFiltradas.filter(item => item.ano === anoAtual);
+            break;
+          case 'trimestre_atual':
+            const trimestreAtual = Math.floor((hoje.getMonth()) / 3);
+            const mesesTrimestre = [
+              ['01', '02', '03'],
+              ['04', '05', '06'],
+              ['07', '08', '09'],
+              ['10', '11', '12']
+            ][trimestreAtual];
+            receitasFiltradas = receitasFiltradas.filter(item => 
+              mesesTrimestre.includes(item.mes) && item.ano === anoAtual
+            );
+            despesasFiltradas = despesasFiltradas.filter(item => 
+              mesesTrimestre.includes(item.mes) && item.ano === anoAtual
+            );
+            break;
+        }
+      }
+    }
+
+    // Filtro por período customizado (tem prioridade sobre tudo)
+    if (filtros.dataInicio && filtros.dataFim) {
+      const dataInicio = new Date(filtros.dataInicio);
+      const dataFim = new Date(filtros.dataFim);
+      
+      receitasFiltradas = receitasFiltradas.filter(item => {
+        const dataItem = new Date(item.data);
+        return dataItem >= dataInicio && dataItem <= dataFim;
+      });
+      
+      despesasFiltradas = despesasFiltradas.filter(item => {
+        const dataItem = new Date(item.data);
+        return dataItem >= dataInicio && dataItem <= dataFim;
+      });
     }
 
     // Filtro por categoria de receita
@@ -106,29 +185,13 @@ export const useDadosRelatorios = (filtros) => {
       receitasFiltradas = [];
     }
 
-    // Filtro por período customizado
-    if (filtros.dataInicio && filtros.dataFim) {
-      const dataInicio = new Date(filtros.dataInicio);
-      const dataFim = new Date(filtros.dataFim);
-      
-      receitasFiltradas = receitasFiltradas.filter(item => {
-        const dataItem = new Date(item.data);
-        return dataItem >= dataInicio && dataItem <= dataFim;
-      });
-      
-      despesasFiltradas = despesasFiltradas.filter(item => {
-        const dataItem = new Date(item.data);
-        return dataItem >= dataInicio && dataItem <= dataFim;
-      });
-    }
-
     return { receitas: receitasFiltradas, despesas: despesasFiltradas };
-  }, [filtros, dadosMock]);
+  }, [filtros, receitasOriginais, despesasOriginais]);
 
   // Calcular totais
   const totais = useMemo(() => {
-    const totalReceitas = filtrarDados.receitas.reduce((sum, item) => sum + item.valor, 0);
-    const totalDespesas = filtrarDados.despesas.reduce((sum, item) => sum + item.valor, 0);
+    const totalReceitas = filtrarDados.receitas.reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0);
+    const totalDespesas = filtrarDados.despesas.reduce((sum, item) => sum + (parseFloat(item.valor) || 0), 0);
     const lucro = totalReceitas - totalDespesas;
 
     return {
@@ -147,17 +210,19 @@ export const useDadosRelatorios = (filtros) => {
     const despesasPorCategoria = {};
 
     filtrarDados.receitas.forEach(item => {
-      if (!receitasPorCategoria[item.categoria]) {
-        receitasPorCategoria[item.categoria] = 0;
+      const categoria = item.categoria || 'sem_categoria';
+      if (!receitasPorCategoria[categoria]) {
+        receitasPorCategoria[categoria] = 0;
       }
-      receitasPorCategoria[item.categoria] += item.valor;
+      receitasPorCategoria[categoria] += parseFloat(item.valor) || 0;
     });
 
     filtrarDados.despesas.forEach(item => {
-      if (!despesasPorCategoria[item.categoria]) {
-        despesasPorCategoria[item.categoria] = 0;
+      const categoria = item.categoria || 'sem_categoria';
+      if (!despesasPorCategoria[categoria]) {
+        despesasPorCategoria[categoria] = 0;
       }
-      despesasPorCategoria[item.categoria] += item.valor;
+      despesasPorCategoria[categoria] += parseFloat(item.valor) || 0;
     });
 
     return { receitas: receitasPorCategoria, despesas: despesasPorCategoria };
@@ -177,11 +242,17 @@ export const useDadosRelatorios = (filtros) => {
     };
 
     filtrarDados.receitas.forEach(item => {
-      receitasPorStatus[item.status] += item.valor;
+      const status = item.status || 'pendente';
+      if (receitasPorStatus[status] !== undefined) {
+        receitasPorStatus[status] += parseFloat(item.valor) || 0;
+      }
     });
 
     filtrarDados.despesas.forEach(item => {
-      despesasPorStatus[item.status] += item.valor;
+      const status = item.status || 'pendente';
+      if (despesasPorStatus[status] !== undefined) {
+        despesasPorStatus[status] += parseFloat(item.valor) || 0;
+      }
     });
 
     return { receitas: receitasPorStatus, despesas: despesasPorStatus };
@@ -192,6 +263,8 @@ export const useDadosRelatorios = (filtros) => {
     despesas: filtrarDados.despesas,
     totais,
     totaisPorCategoria,
-    totaisPorStatus
+    totaisPorStatus,
+    loading,
+    error
   };
 };

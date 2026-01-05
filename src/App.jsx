@@ -8,7 +8,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import ReceitasPage from './components/Receitas/ReceitasPage';
 import DespesasPage from './components/Despesas/DespesasPage';
 import FluxoCaixaPage from './components/FluxoCaixa/FluxoCaixaPage';
-import RelatoriosPage from './components/Relatorios/RelatoriosPage';
+import RelatoriosPageNova from './components/Relatorios/RelatoriosPageNova';
 import FiscalPage from './components/Fiscal/FiscalPage';
 import ConfiguracoesPage from './components/Configuracoes/ConfiguracoesPage';
 import './App.css';
@@ -33,7 +33,7 @@ function App() {
               <Route path="receitas" element={<ReceitasPage />} />
               <Route path="despesas" element={<DespesasPage />} />
               <Route path="fluxo-caixa" element={<FluxoCaixaPage />} />
-              <Route path="relatorios" element={<RelatoriosPage />} />
+              <Route path="relatorios" element={<RelatoriosPageNova />} />
               <Route path="fiscal" element={<FiscalPage />} />
               <Route path="configuracoes" element={<ConfiguracoesPage />} />
             </Route>
